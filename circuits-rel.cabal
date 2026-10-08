@@ -1,0 +1,64 @@
+cabal-version: 3.0
+name: circuits-rel
+version: 0.1.0.0
+license: BSD-3-Clause
+license-file: LICENSE
+copyright: Tony Day (c) 2026
+category: control
+author: Tony Day
+maintainer: tonyday567@gmail.com
+homepage: https://github.com/tonyday567/circuits-rel#readme
+bug-reports: https://github.com/tonyday567/circuits-rel/issues
+synopsis: finite relations for circuits
+description:
+  Finite relations over the circuits substrate: explicit finite relations
+  (Rel, Fin) and GF(2) linear relations (FinRel), the reference semantics
+  for deciding equality of wiring diagrams.  Split out of core circuits so
+  the substrate can stay focused on wiring and processes.
+
+build-type: Simple
+tested-with:
+  ghc ==9.10.1
+  ghc ==9.12.2
+  ghc ==9.14.1
+
+source-repository head
+  type: git
+  location: https://github.com/tonyday567/circuits-rel
+
+common ghc-options-stanza
+  ghc-options:
+    -Wall
+    -Wno-unused-imports
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
+
+library
+  import: ghc-options-stanza
+  default-language: GHC2024
+  hs-source-dirs: src
+  exposed-modules:
+    Circuit.Rel
+
+  build-depends:
+    base >=4.20 && <5,
+    circuits >=0.3 && <0.4,
+
+executable circuits-rel-axioma
+  import: ghc-options-stanza
+  default-language: GHC2024
+  main-is: circuits-rel-axioma.hs
+  hs-source-dirs: app
+  other-modules:
+    Axioma.Common
+    Axioma.FinRel
+
+  build-depends:
+    base >=4.20 && <5,
+    circuits,
+    circuits-rel,
+    optparse-applicative >=0.17 && <0.20,
