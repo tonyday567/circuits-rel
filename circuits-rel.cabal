@@ -42,6 +42,7 @@ library
   default-language: GHC2024
   hs-source-dirs: src
   exposed-modules:
+    Circuit.Cellular
     Circuit.Rel
 
   build-depends:
