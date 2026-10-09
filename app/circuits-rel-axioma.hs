@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Axioma.Cellular (cellularTopic)
 import Axioma.Common (Verbosity (..))
 import Axioma.FinRel (finRelTopic)
 import Control.Category ((.))
@@ -8,15 +9,18 @@ import Prelude hiding (id, (.))
 
 data Topic
   = All
+  | Cellular
   | FinRel
   deriving (Show, Eq, Bounded, Enum)
 
 topicName :: Topic -> String
 topicName All = "all"
+topicName Cellular = "cellular"
 topicName FinRel = "finrel"
 
 topicDesc :: Topic -> String
 topicDesc All = "run all topics"
+topicDesc Cellular = "Cellular oracles: homomorphism, centrality, image, projection, corpus"
 topicDesc FinRel = "FinRel bimonoid, dagger, and trace oracles"
 
 topicParser :: Parser Topic
@@ -67,11 +71,12 @@ opts =
     )
 
 runTopic :: Topic -> Verbosity -> IO [Bool]
+runTopic Cellular = cellularTopic
 runTopic FinRel = finRelTopic
 runTopic All = error "runTopic All is handled by the dispatcher"
 
 allTopics :: [Topic]
-allTopics = [FinRel]
+allTopics = [Cellular, FinRel]
 
 greenCircle :: String
 greenCircle = "🟢"

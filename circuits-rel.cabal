@@ -55,6 +55,7 @@ executable circuits-rel-axioma
   main-is: circuits-rel-axioma.hs
   hs-source-dirs: app
   other-modules:
+    Axioma.Cellular
     Axioma.Common
     Axioma.FinRel
 

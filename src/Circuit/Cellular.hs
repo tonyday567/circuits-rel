@@ -35,7 +35,7 @@ module Circuit.Cellular
     -- * Groups
     Group (..),
     Integer,
-    Mod,
+    Mod (..),
     mkMod,
     Perm3,
     perm3,
@@ -67,6 +67,7 @@ module Circuit.Cellular
     applyMat,
     rankGF2,
     nullspaceGF2,
+    rrefRows,
   )
 where
 
@@ -137,22 +138,26 @@ allPerms3 =
     perm3 (2, 1, 0)
   ]
 
--- | Translate a configuration by h: @(shift h x)(g) = x(g·h)@.  A CA is
--- shift-central exactly when it commutes with every 'shift'.
+-- | Translate a configuration by h, as the left action of the group on
+-- the full shift: @(shift h x)(g) = x(h⁻¹·g)@.  With the right-neighbor
+-- window convention of 'runCA' and 'convolve', this is the unique
+-- translation making centrality unconditional: on nonabelian groups a
+-- right-multiplication shift would pick up commutators (checked
+-- exhaustively on S_3 in "Axioma.Cellular", check 2).
 --
--- >>> shift 2 (\i -> i * i) 3
--- 25
+-- >>> shift 2 (\i -> i * i) 5
+-- 9
 --
 -- Centrality of the rule-90 element t + t^-1 on Z, observed on a window
 -- of the 5-periodic configuration x(g) = [g mod 5 == 0]: both sides
--- reduce to x(g+3) ⊕ x(g+1), so an off-by-one in 'shift' goes red:
+-- reduce to x(g-1) ⊕ x(g-3), so an off-by-one in 'shift' goes red:
 --
 -- >>> let c90 = linCA [1, -1] :: LinCA Integer
 -- >>> let x g = g `mod` 5 == 0
 -- >>> [convolve c90 (shift 2 x) g | g <- [0 .. 7]] == [shift 2 (convolve c90 x) g | g <- [0 .. 7]]
 -- True
 shift :: (Group g) => g -> Config g a -> Config g a
-shift h x g = x (gmul g h)
+shift h x g = x (gmul (ginv h) g)
 
 instance Group Perm3 where
   gid = perm3 (0, 1, 2)
@@ -372,11 +377,20 @@ rrefRows m0 = foldl elim pivots (reverse pivots)
       | otherwise = case [r | r <- pool, safeAt False c r] of
           [] -> forward (c + 1) pool acc
           (piv : _) ->
-            let pool' = [if r == piv then r else zipWith (/=) r piv | r <- pool, r /= piv, or r]
+            -- Only rows with a 1 in the pivot column are cleared;
+            -- adding the pivot row to a row with 0 there would
+            -- introduce a 1 into an already-settled column.
+            let pool' =
+                  [ if safeAt False c r then zipWith (/=) r piv else r
+                  | r <- pool,
+                    r /= piv,
+                    or r
+                  ]
              in forward (c + 1) pool' (piv : acc)
     pivots = reverse (forward 0 (filter or m0) [])
     elim rows piv =
-      [if r == piv then piv else zipWith (/=) r piv | r <- rows]
+      let c = firstOne piv
+       in [if r == piv then piv else if safeAt False c r then zipWith (/=) r piv else r | r <- rows]
 
 -- | Total indexing with a default.
 safeAt :: a -> Int -> [a] -> a
