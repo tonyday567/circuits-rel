@@ -71,6 +71,7 @@ module Circuit.Cellular
   )
 where
 
+import Data.List (delete)
 import Data.Proxy (Proxy (..))
 import GHC.TypeNats (KnownNat, Nat, natVal)
 import Prelude
@@ -139,7 +140,7 @@ allPerms3 =
   ]
 
 -- | Translate a configuration by h, as the left action of the group on
--- the full shift: @(shift h x)(g) = x(h⁻¹·g)@.  With the right-neighbor
+-- the full shift: @(shift h x)(g) = x(h^-1·g)@.  With the right-neighbor
 -- window convention of 'runCA' and 'convolve', this is the unique
 -- translation making centrality unconditional: on nonabelian groups a
 -- right-multiplication shift would pick up commutators (checked
@@ -365,9 +366,14 @@ nullspaceGF2 width m =
        in take p acc ++ [v] ++ drop (p + 1) acc
 
 -- | Reduced row echelon form over F_2: full elimination (each pivot
--- column is cleared above and below), zero rows dropped.
+-- column is cleared above and below), zero rows dropped.  Gauss-Jordan
+-- forward pass — when a pivot is chosen at column c, the column is
+-- cleared from every remaining pool row and from every pivot already
+-- collected; a pool row always has zeros at earlier pivot columns, so
+-- collected pivots keep their leading columns and the accumulator is
+-- RREF at every step.
 rrefRows :: [[Bool]] -> [[Bool]]
-rrefRows m0 = foldl elim pivots (reverse pivots)
+rrefRows m0 = reverse (forward 0 (filter or m0) [])
   where
     w = case m0 of
       [] -> 0
@@ -379,18 +385,14 @@ rrefRows m0 = foldl elim pivots (reverse pivots)
           (piv : _) ->
             -- Only rows with a 1 in the pivot column are cleared;
             -- adding the pivot row to a row with 0 there would
-            -- introduce a 1 into an already-settled column.
-            let pool' =
-                  [ if safeAt False c r then zipWith (/=) r piv else r
-                  | r <- pool,
-                    r /= piv,
-                    or r
-                  ]
-             in forward (c + 1) pool' (piv : acc)
-    pivots = reverse (forward 0 (filter or m0) [])
-    elim rows piv =
-      let c = firstOne piv
-       in [if r == piv then piv else if safeAt False c r then zipWith (/=) r piv else r | r <- rows]
+            -- introduce a 1 into an already-settled column.  'delete'
+            -- removes a single occurrence of the pivot row, so an
+            -- identical twin survives to be eliminated (it reduces to
+            -- zero and drops out).
+            let clear r = if safeAt False c r then zipWith (/=) r piv else r
+                pool' = [clear r | r <- delete piv pool, or r]
+                acc' = map clear acc ++ [piv]
+             in forward (c + 1) pool' acc'
 
 -- | Total indexing with a default.
 safeAt :: a -> Int -> [a] -> a

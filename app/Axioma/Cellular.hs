@@ -39,7 +39,8 @@ cellularTopic verbosity = do
       checkV verbosity "check 2 mutation: the off-by-one wraparound shift breaks centrality somewhere" checkCentralityOffByOneFails,
       checkV verbosity "check 3: im(T_e) = fix(T_e) for e = 1+t+t^2, FinRel equality vs brute enumeration" checkIdempotentImage,
       checkV verbosity "check 4: ab = 1 forces ba = 1 on the torus ring (direct finiteness, exact)" checkDirectFinite,
-      checkV verbosity "check 4: projection law T_{ba}^2 = T_{ba} via FinRel composition, with controls" checkProjection
+      checkV verbosity "check 4: projection law T_{ba}^2 = T_{ba} via FinRel composition, with controls" checkProjection,
+      checkV verbosity "check 5: the 256-rule corpus, de Bruijn exact, cross-checked by torus enumeration" =<< corpus verbosity
     ]
 
 -- * check 1: the homomorphism law
@@ -302,3 +303,196 @@ plusI :: [[Bool]] -> [[Bool]]
 plusI m = [zipWith (/=) row [j == i | j <- [0 .. n - 1]] | (i, row) <- zip [0 ..] m]
   where
     n = length m
+
+-- * check 5: the 2^8 corpus
+
+-- | Elementary rules 0..255 on the alphabet Bool with neighborhood
+-- M = {-1, 0, 1}, Wolfram numbering: the bit at index 4l + 2c + r of
+-- the rule number is the output on the window (l, c, r).
+ruleTab :: Int -> Bool -> Bool -> Bool -> Bool
+ruleTab r l c r' = testBit r (4 * bit l + 2 * bit c + bit r')
+  where
+    bit b = if b then 1 else 0
+
+-- | The torus map of an elementary rule on n sites, on list
+-- configurations: site i reads (x(i-1), x(i), x(i+1)) with cyclic
+-- indexing.  An independent rendering of 'ruleTab' — the corpus
+-- cross-check compares verdicts of two different machines.
+torusMap :: Int -> Int -> [Bool] -> [Bool]
+torusMap n r x =
+  [ ruleTab r l c r'
+  | (l, c, r') <- zip3 (drop (n - 1) x ++ take (n - 1) x) x (drop 1 x ++ take 1 x)
+  ]
+
+-- | Surjectivity on the full shift by the de Bruijn criterion
+-- (Amoroso-Patt): nodes are the 4 overlapping pairs, edges the 8
+-- triples labeled by the rule output.  A finite word is an orphan
+-- (no preimage) iff the subset automaton — start at the full node
+-- set, step on each symbol to the set of edge-reachable nodes —
+-- reaches the empty set.  The automaton has at most 2^4 = 16
+-- states, so a shortest orphan, if one exists, has length at most
+-- 16; breadth-first search to fixpoint is therefore an EXACT
+-- decision procedure, not a heuristic.
+dbSurjective :: Int -> Bool
+dbSurjective r = case dbOrphanDepth r of
+  Nothing -> True
+  Just _ -> False
+
+-- | Breadth-first search over the subset automaton, returning the
+-- length of a shortest orphan word (the BFS depth at which the empty
+-- set is first reached).
+dbOrphanDepth :: Int -> Maybe Int
+dbOrphanDepth r = bfs 0 [allNodes] [allNodes]
+  where
+    allNodes = [(l, c') | l <- [False, True], c' <- [False, True]]
+    edges =
+      [ (((l, c'), (c', rr)), ruleTab r l c' rr)
+      | l <- [False, True],
+        c' <- [False, True],
+        rr <- [False, True]
+      ]
+    step set s = [v | ((u, v), s') <- edges, s' == s, u `elem` set]
+    bfs _ _ [] = Nothing
+    bfs depth seen (q : queue) =
+      let nexts = [sort (nub (step q s)) | s <- [False, True]]
+          fresh = [s | s <- nexts, s `notElem` seen]
+       in if any null nexts
+            then Just (depth + 1)
+            else bfs (depth + 1) (seen ++ fresh) (queue ++ fresh)
+
+-- | Surjectivity (equivalently injectivity, on a finite set) of the
+-- n-torus map, by exhaustive enumeration of all 2^n configurations.
+torusSurjective :: Int -> Int -> Bool
+torusSurjective n r =
+  length (nub (sort (map (torusMap n r) configs))) == length configs
+  where
+    configs = configsOf n
+
+-- | All binary lists of a runtime-given length: 'allConfigs' at
+-- runtime n, for the corpus sizes the cross-check sweeps.
+configsOf :: Int -> [[Bool]]
+configsOf 0 = [[]]
+configsOf k = [x : rest | x <- [False, True], rest <- configsOf (k - 1)]
+
+-- | Torus sizes for the enumeration cross-check.  Every n >= 3 is
+-- large enough to host a radius-1 window with faithful overlap, so
+-- torus-surjectivity at these sizes implies full-shift surjectivity;
+-- the converse fails for some linear rules (rule 90 is obstructed by
+-- the even-weight subspace at every size) — that asymmetry is emitted
+-- in the classification table, not hidden.
+corpusSizes :: [Int]
+corpusSizes = [3, 4, 5, 6, 8, 10, 12]
+
+-- | Left-permutivity: for each (center, right) the two left inputs
+-- give different outputs — the window can be reconstructed right to
+-- left, which makes the rule surjective on the full shift.
+leftPermutive :: Int -> Bool
+leftPermutive r =
+  and [ruleTab r False c rr /= ruleTab r True c rr | c <- [False, True], rr <- [False, True]]
+
+-- | The kernel of the rule-90 element t + t^-1 on Z, witnessed on the
+-- 2-periodic configurations: tau x = 0 forces x(g+1) = x(g-1), so the
+-- kernel is exactly the four 2-periodic configurations.  With
+-- surjectivity (de Bruijn), every fiber has this size — rule 90 is
+-- 4-to-1.
+rule90Kernel :: [Config Integer Bool]
+rule90Kernel =
+  [ x
+  | seed <- configsOf 2,
+    let x g = seed !! fromIntegral (g `mod` 2),
+    all (\g -> not (ruleTab 90 (x (g - 1)) (x g) (x (g + 1)))) [(-5) .. 5]
+  ]
+
+-- | The smallest torus on which a rule's map is not injective, with a
+-- witnessed colliding pair (two distinct configurations, same image).
+-- A torus collision lifts to a pair of distinct periodic
+-- configurations on Z with the same image — the certificate of
+-- non-injectivity on the full shift.
+torusCollision :: Int -> Maybe (Int, [Bool], [Bool])
+torusCollision r = go corpusSizes
+  where
+    go [] = Nothing
+    go (n : ns) = case [ (x, x')
+                       | x <- configsOf n,
+                         x' <- configsOf n,
+                         x < x',
+                         torusMap n r x == torusMap n r x'
+                       ] of
+      [] -> go ns
+      ((x, x') : _) -> Just (n, x, x')
+
+-- | Check 5: classify all 256 elementary rules by the exact de Bruijn
+-- decision procedure, cross-checked by torus enumeration, and emit the
+-- classification table.  The cross-check law (one direction, exact): a
+-- rule whose de Bruijn graph has a shortest orphan of length o must
+-- fail torus enumeration at every tested size n >= o — a torus
+-- preimage of the o-periodic extension of the orphan would unwrap to
+-- a full-shift preimage.  Small tori below the orphan length can
+-- legitimately stay surjective, so sizes below o are excluded from the
+-- law and reported as data instead; the run measures orphan lengths
+-- up to the 2^4 = 16 bound (tight on this corpus).  For de
+-- Bruijn-surjective rules the torus column is reported as data.  The
+-- card's anchors are verified, not assumed: rule 90 surjective and
+-- 4-to-1, rule 30 left-permutive hence surjective and non-injective.
+corpus :: Verbosity -> IO Bool
+corpus verbosity = do
+  let verdicts = [(r, dbOrphanDepth r) | r <- [0 .. 255]]
+      surjective = [r | (r, Nothing) <- verdicts]
+      nonsurj = [r | (r, Just _) <- verdicts]
+      depths = [d | (_, Just d) <- verdicts]
+      -- Exact one-directional law: a rule whose de Bruijn graph has an
+      -- orphan of length o must fail torus enumeration at every size
+      -- n >= o (a torus preimage of the periodic extension of the
+      -- orphan word would unwrap to a full-shift preimage).  Small
+      -- tori below the orphan length can stay surjective — that is a
+      -- theorem about the geometry, not a discrepancy.
+      crossOk =
+        and
+          [ not (torusSurjective n r)
+          | (r, Just o) <- verdicts,
+            n <- corpusSizes,
+            n >= o
+          ]
+      torusFails r = [n | n <- corpusSizes, not (torusSurjective n r)]
+      anchor90 = dbSurjective 90 && length rule90Kernel == 4
+      anchor30 =
+        leftPermutive 30
+          && dbSurjective 30
+          && case torusCollision 30 of
+            Just _ -> True
+            Nothing -> False
+  when (verbosity == Axioms) $ do
+    putStrLn "classification of the 256 elementary rules (Wolfram numbering)"
+    putStrLn ("  de Bruijn-surjective on the full shift: " ++ show (length surjective) ++ " rules")
+    putStrLn ("  not surjective: " ++ show (length nonsurj) ++ " rules")
+    putStrLn ("  shortest orphan lengths: max " ++ show (maximum depths) ++ ", distribution " ++ show (sort depths))
+    putStrLn ("  surjective rule numbers: " ++ show surjective)
+    putStrLn "  torus behavior of the surjective rules (sizes where the torus map fails):"
+    mapM_
+      ( \r ->
+          putStrLn
+            ( "    rule "
+                ++ show r
+                ++ ": "
+                ++ (case torusFails r of [] -> "surjective on every tested torus"; fs -> "fails tori " ++ show fs)
+            )
+      )
+      surjective
+    putStrLn "  anchors:"
+    putStrLn ("    rule 90 surjective, 4-to-1 (kernel size " ++ show (length rule90Kernel) ++ "): " ++ show anchor90)
+    case torusCollision 30 of
+      Just (n, x, x') ->
+        putStrLn
+          ( "    rule 30 left-permutive "
+              ++ show (leftPermutive 30)
+              ++ ", surjective "
+              ++ show (dbSurjective 30)
+              ++ ", non-injective: collision on Z/"
+              ++ show n
+              ++ " between "
+              ++ show x
+              ++ " and "
+              ++ show x'
+          )
+      Nothing -> putStrLn "    rule 30: no torus collision found"
+  pure (crossOk && anchor90 && anchor30)
