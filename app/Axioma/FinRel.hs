@@ -9,7 +9,7 @@ module Axioma.FinRel
 where
 
 import Axioma.Common (Verbosity (..), checkV)
-import Circuit.Bimonoid (Copy (..), Dagger (..), Discard (..), Merge (..), Zero (..), transpose)
+import Circuit.Bimonoid (Copy (..), Dagger (..), Discard (..), Merge (..), Zero (..), dagger)
 import Circuit.Category (id)
 import Circuit.Rel
 import Control.Monad (when)
@@ -60,10 +60,10 @@ discard2 :: FinRel N2 ()
 discard2 = discard
 
 plus1 :: FinRel (N1, N1) N1
-plus1 = plus
+plus1 = merge
 
 plus2 :: FinRel (N2, N2) N2
-plus2 = plus
+plus2 = merge
 
 zero1 :: FinRel () N1
 zero1 = zero
@@ -114,7 +114,7 @@ assoc'FinRel ::
 assoc'FinRel = wiring id
 
 -- | Dagger(FinRel) collapse witness: 'Copy' on the dagger requires
--- 'Merge' on the base, so the back of @copy@ is @plus@.  The
+-- 'Merge' on the base, so the back of @copy@ is @merge@.  The
 -- constructors are pinned by type signatures so the instance method
 -- resolves unambiguously.
 daggerCopy1 :: Dagger FinRel N1 (N1, N1)
@@ -144,31 +144,31 @@ finRelTopic verbosity = do
         swapFinRel `compFinRel` copy1 == copy1,
       checkV verbosity "copy cocommutative (n=2)" $
         swapFinRel `compFinRel` copy2 == copy2,
-      -- plus/zero monoid laws
-      checkV verbosity "plus associative (n=1)" $
+      -- merge/zero monoid laws
+      checkV verbosity "merge associative (n=1)" $
         plus1 `compFinRel` parFinRel plus1 id1 == plus1 `compFinRel` parFinRel id1 plus1 `compFinRel` assocFinRel,
-      checkV verbosity "plus associative (n=2)" $
+      checkV verbosity "merge associative (n=2)" $
         plus2 `compFinRel` parFinRel plus2 id2 == plus2 `compFinRel` parFinRel id2 plus2 `compFinRel` assocFinRel,
-      checkV verbosity "plus left unit (n=1)" $
+      checkV verbosity "merge left unit (n=1)" $
         plus1 `compFinRel` parFinRel zero1 id1 `compFinRel` unitl1' == id1,
-      checkV verbosity "plus left unit (n=2)" $
+      checkV verbosity "merge left unit (n=2)" $
         plus2 `compFinRel` parFinRel zero2 id2 `compFinRel` unitl2' == id2,
-      checkV verbosity "plus right unit (n=1)" $
+      checkV verbosity "merge right unit (n=1)" $
         plus1 `compFinRel` parFinRel id1 zero1 `compFinRel` unitr1' == id1,
-      checkV verbosity "plus right unit (n=2)" $
+      checkV verbosity "merge right unit (n=2)" $
         plus2 `compFinRel` parFinRel id2 zero2 `compFinRel` unitr2' == id2,
-      checkV verbosity "plus commutative (n=1)" $
+      checkV verbosity "merge commutative (n=1)" $
         plus1 `compFinRel` swapFinRel == plus1,
-      checkV verbosity "plus commutative (n=2)" $
+      checkV verbosity "merge commutative (n=2)" $
         plus2 `compFinRel` swapFinRel == plus2,
       -- bialgebra laws
-      checkV verbosity "bialgebra copy-plus (n=1)" $
+      checkV verbosity "bialgebra copy-merge (n=1)" $
         copy1 `compFinRel` plus1 == parFinRel plus1 plus1 `compFinRel` swapMiddle `compFinRel` parFinRel copy1 copy1,
-      checkV verbosity "bialgebra copy-plus (n=2)" $
+      checkV verbosity "bialgebra copy-merge (n=2)" $
         copy2 `compFinRel` plus2 == parFinRel plus2 plus2 `compFinRel` swapMiddle2 `compFinRel` parFinRel copy2 copy2,
-      checkV verbosity "bialgebra discard-plus (n=1)" $
+      checkV verbosity "bialgebra discard-merge (n=1)" $
         discard1 `compFinRel` plus1 == unitr0 `compFinRel` parFinRel discard1 discard1,
-      checkV verbosity "bialgebra discard-plus (n=2)" $
+      checkV verbosity "bialgebra discard-merge (n=2)" $
         discard2 `compFinRel` plus2 == unitr0 `compFinRel` parFinRel discard2 discard2,
       checkV verbosity "bialgebra zero-copy (n=1)" $
         copy1 `compFinRel` zero1 == parFinRel zero1 zero1 `compFinRel` (wiring id :: FinRel () ((), ())),
@@ -189,14 +189,14 @@ finRelTopic verbosity = do
       -- tensor-comonoid and the par-monoid in a single construction.
       checkV verbosity "Dagger(FinRel) copy front is FinRel copy" $
         front daggerCopy1 == copy1,
-      checkV verbosity "Dagger(FinRel) copy back is FinRel plus" $
+      checkV verbosity "Dagger(FinRel) copy back is FinRel merge" $
         back daggerCopy1 == plus1,
       checkV verbosity "Dagger(FinRel) discard front is FinRel discard" $
         front daggerDiscard1 == discard1,
       checkV verbosity "Dagger(FinRel) discard back is FinRel zero" $
         back daggerDiscard1 == zero1,
-      checkV verbosity "Dagger(FinRel) transpose copy has plus in front" $
-        front (transpose daggerCopy1) == plus1,
+      checkV verbosity "Dagger(FinRel) dagger copy has merge in front" $
+        front (dagger daggerCopy1) == plus1,
       -- traced structure
       checkV verbosity "trace yanking (n=1)" $
         traceFinRel (swapFinRel :: FinRel (N1, N1) (N1, N1)) == id1,

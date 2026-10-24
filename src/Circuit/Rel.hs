@@ -22,7 +22,7 @@
 --   morphisms are GF(2)-linear relations presented as the row space of a
 --   matrix with @(n+m)@ columns. Values are 'Bool', addition is 'xor',
 --   multiplication is '&&'. The category carries the cartesian monoidal
---   structure @(,)@, is traced, and supports the copy/discard/plus/zero
+--   structure @(,)@, is traced, and supports the copy/discard/merge/zero
 --   generators that 'Circuit.Net' uses for wiring.
 --
 -- Both grades are intentionally small and self-contained: they are the
@@ -509,7 +509,7 @@ instance (KnownNat n) => Discard FinRel (FinObj n) where
   discard = finDiscard
 
 instance (KnownNat n) => Merge FinRel (FinObj n) where
-  plus = finPlus
+  merge = finPlus
 
 instance (KnownNat n) => Zero FinRel (FinObj n) where
   zero = finZero
@@ -533,7 +533,7 @@ instance Discard FinRel () where
   discard = finDiscardUnit
 
 instance Merge FinRel () where
-  plus = finPlusUnit
+  merge = finPlusUnit
 
 instance Zero FinRel () where
   zero = finZeroUnit
