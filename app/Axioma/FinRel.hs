@@ -41,6 +41,22 @@ swapMiddle = swapBlocks @1
 swapMiddle2 :: FinRel ((N2, N2), (N2, N2)) ((N2, N2), (N2, N2))
 swapMiddle2 = swapBlocks @2
 
+-- | Historical wire-level middle swaps. At n=1 this coincides with the
+-- required block swap; at n=2 it moves only wires 2 and 4.
+historicalSwapMiddle1 :: FinRel ((N1, N1), (N1, N1)) ((N1, N1), (N1, N1))
+historicalSwapMiddle1 = wiring perm
+  where
+    perm 1 = 2
+    perm 2 = 1
+    perm i = i
+
+historicalSwapMiddle2 :: FinRel ((N2, N2), (N2, N2)) ((N2, N2), (N2, N2))
+historicalSwapMiddle2 = wiring perm
+  where
+    perm 2 = 4
+    perm 4 = 2
+    perm i = i
+
 id1 :: FinRel N1 N1
 id1 = finId
 
@@ -166,6 +182,10 @@ finRelTopic verbosity = do
         copy1 `compFinRel` plus1 == parFinRel plus1 plus1 `compFinRel` swapMiddle `compFinRel` parFinRel copy1 copy1,
       checkV verbosity "bialgebra copy-merge (n=2)" $
         copy2 `compFinRel` plus2 == parFinRel plus2 plus2 `compFinRel` swapMiddle2 `compFinRel` parFinRel copy2 copy2,
+      checkV verbosity "historical wire swap, bialgebra copy-merge (n=1): expected PASS" $
+        copy1 `compFinRel` plus1 == parFinRel plus1 plus1 `compFinRel` historicalSwapMiddle1 `compFinRel` parFinRel copy1 copy1,
+      checkV verbosity "historical wire swap, bialgebra copy-merge (n=2): expected FAIL (inequality confirmed)" $
+        copy2 `compFinRel` plus2 /= parFinRel plus2 plus2 `compFinRel` historicalSwapMiddle2 `compFinRel` parFinRel copy2 copy2,
       checkV verbosity "bialgebra discard-merge (n=1)" $
         discard1 `compFinRel` plus1 == unitr0 `compFinRel` parFinRel discard1 discard1,
       checkV verbosity "bialgebra discard-merge (n=2)" $
